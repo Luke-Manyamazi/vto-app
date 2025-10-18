@@ -1,0 +1,56 @@
+name: Add VTO Sprint 1 To-Dos
+
+on:
+  workflow_dispatch: # manual trigger
+
+jobs:
+  create_issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create Sprint 1 Issues
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          PROJECT_NUMBER: 4 # <-- Change to your actual project number
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          echo "Fetching project ID..."
+          project_id=$(gh api graphql -f query='
+            query($owner: String!, $number: Int!) {
+              organization(login: $owner) {
+                projectV2(number: $number) {
+                  id
+                  title
+                }
+              }
+            }' -F owner="$OWNER" -F number=$PROJECT_NUMBER --jq '.data.organization.projectV2.id')
+
+          echo "Project ID: $project_id"
+
+          echo "Creating issues..."
+          issues=(
+            "Set up base React project structure"
+            "Integrate Three.js and load GLB model"
+            "Implement face tracking with MediaPipe FaceMesh"
+            "Bind frame model to face landmarks"
+            "Create basic UI for frame selection"
+            "Implement camera input handling"
+            "Add model scaling and rotation smoothing"
+            "Test performance and optimize rendering"
+          )
+
+          for title in "${issues[@]}"; do
+            issue_id=$(gh api repos/$REPO/issues -f title="$title" --jq '.node_id')
+            echo "Adding issue to project..."
+            gh api graphql -f query='
+              mutation($project:ID!, $issue:ID!) {
+                addProjectV2ItemById(input:{projectId:$project, contentId:$issue}) {
+                  item { id }
+                }
+              }' -F project="$project_id" -F issue="$issue_id"
+          done
+
+          echo "✅ Sprint 1 To-Dos created and added to project board."
